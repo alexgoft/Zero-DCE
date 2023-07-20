@@ -22,12 +22,13 @@ class ZeroDCE(torch.nn.Module):
 
         # TODO Below to a init function?
         # @@@ DCE-Net
-        self._convs = []
-        self._acts = []
+        self._layers = []
+
         # Every layer is followed by RELU, and the last is followed by tanh
         for i in range(self._layers_num):
             in_channels = self._RGB_CHANNELS if i == 0 else self._layers_width
-            out_channels = self._iterations_num if i == self._layers_num - 1 else self._layers_width
+            out_channels = self._iterations_num * self._RGB_CHANNELS if i == self._layers_num - 1 else self._layers_width
+
             conv = torch.nn.Conv2d(
                 padding=1,
                 in_channels=in_channels,
@@ -35,37 +36,38 @@ class ZeroDCE(torch.nn.Module):
                 kernel_size=(3, 3),
                 stride=(1, 1)
             )
-            activation = torch.nn.ReLU() if i != self._layers_num - 1 else torch.nn.Tanh()
+            # Append convolution layer and act function (Tanh for last layer and ReLU for the rest.
+            self._layers.append(conv)
+            self._layers.append(torch.nn.ReLU() if i != self._layers_num - 1 else torch.nn.Tanh())
 
-            self._convs.append(conv)
-            self._acts.append(activation)
+        self._model = torch.nn.Sequential(*self._layers)
 
     def forward(self, x):
 
-        # DCE-Net feedforward.
+        # @@@@@@@@@@@@@@@@@@ DCE-Net @@@@@@@@@@@@@@@@@@ #
+        # Create Curve maps for input image x.
         mid_results = []
-        for layer_num, (conv, act) in enumerate(zip(self._convs, self._acts)):
 
-            print('curr_layer:', layer_num)
+        # First num_half_net_layers layers. Results will be connected to further layers.
+        num_half_net_layers = (self._layers_num - 1) // 2
+        for layer_num in range(num_half_net_layers):
+            x = self._layers[layer_num](x)
 
-            possible_layer_num_to_skip = self._layers_num - layer_num - 1
-            if layer_num > possible_layer_num_to_skip:
-                x += mid_results[possible_layer_num_to_skip]
+            mid_results.append(x)
 
-                print(f'\t connect {possible_layer_num_to_skip} to {layer_num}')
+        # Skip connections layers.
+        for layer_num in range(num_half_net_layers, self._layers_num - 1):
+            x = self._layers[layer_num](x) + mid_results[layer_num % num_half_net_layers]
 
-            x = conv(x)
-            x = act(x)
+        # Last layer that produces the curve maps.
+        x = self._layers[self._layers_num - 1](x)
 
-            # TODO 1 This is not elegant enough
-            # TODO 2 What about output shape which needs to be (batch_num, num_iterations, 3, 256, 256)
-            if layer_num < possible_layer_num_to_skip:
-                mid_results.append(x)
+        # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
+        # TODO Implement
+        for i in range(self._iterations_num):
+            print(f'Iteration #: {i + 1}')
 
-            # print(x.shape)
-
-        # Calculating output via curve-maps
-        pass
+            iteration_i_map = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
 
         return x
 
@@ -73,12 +75,15 @@ class ZeroDCE(torch.nn.Module):
 if __name__ == '__main__':
     config = {
         ZeroDCE.INPUT_SIZE: 256,
+        # TODO At moment, to ease implementation even number of layers, is supported
+        #  (LAYERS_NUM - 1 is the number of layers in the DCE-NET. Last layer are the curve maps).
         ZeroDCE.LAYERS_NUM: 7,
         ZeroDCE.LAYERS_WIDTH: 32,
         ZeroDCE.ITERATIONS_NUM: 8
     }
 
     zero_dce = ZeroDCE(config=config)
+    print(zero_dce)
 
     # ~~~ Testing stuff ~~~
     # transform = transforms.Compose([
@@ -88,6 +93,7 @@ if __name__ == '__main__':
     #     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
     # ])
     # dummy_input = transform(np.ones(shape=(256, 256, 3), dtype=np.float32))
+
     dummy_input = torch.randn(1, 3, 256, 256)
     out = zero_dce(x=dummy_input)
     # print(out)
