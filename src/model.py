@@ -1,7 +1,9 @@
 import torch
 
 import torchvision.transforms as transforms
-import numpy as np
+import matplotlib.pyplot as plt
+
+from PIL import Image
 
 
 class ZeroDCE(torch.nn.Module):
@@ -12,6 +14,10 @@ class ZeroDCE(torch.nn.Module):
 
     _RGB_CHANNELS = 3
 
+    _STRIDE = (1, 1)
+    _KERNEL_SHAPE = (3, 3)
+    _PADDING = 1  # use padding 1 to keep same shape between convolutions.
+
     def __init__(self, config):
         super(ZeroDCE, self).__init__()
 
@@ -20,29 +26,42 @@ class ZeroDCE(torch.nn.Module):
         self._layers_width = config[self.LAYERS_WIDTH]
         self._iterations_num = config[self.ITERATIONS_NUM]
 
-        # TODO Below to a init function?
         # @@@ DCE-Net
+        #   TODO Below to a init function?
         self._layers = []
+
+        relu = torch.nn.ReLU()
+        tanh = torch.nn.Tanh()
 
         # Every layer is followed by RELU, and the last is followed by tanh
         for i in range(self._layers_num):
-            in_channels = self._RGB_CHANNELS if i == 0 else self._layers_width
-            out_channels = self._iterations_num * self._RGB_CHANNELS if i == self._layers_num - 1 else self._layers_width
 
             conv = torch.nn.Conv2d(
-                padding=1,
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=(3, 3),
-                stride=(1, 1)
+                in_channels=self._RGB_CHANNELS if i == 0 else self._layers_width,
+                out_channels=self._layers_width,
+                padding=self._PADDING,
+                kernel_size=self._KERNEL_SHAPE,
+                stride=self._STRIDE
             )
-            # Append convolution layer and act function (Tanh for last layer and ReLU for the rest.
+
             self._layers.append(conv)
-            self._layers.append(torch.nn.ReLU() if i != self._layers_num - 1 else torch.nn.Tanh())
+            self._layers.append(relu)
+
+        # Add final layer that produce the Curve maps
+        self._layers.append(torch.nn.Conv2d(
+                in_channels=self._layers_width, out_channels=self._iterations_num * self._RGB_CHANNELS,
+                padding=self._PADDING, kernel_size=self._KERNEL_SHAPE, stride=self._STRIDE
+        ))
+        self._layers.append(tanh)
 
         self._model = torch.nn.Sequential(*self._layers)
 
     def forward(self, x):
+
+        input_image = x.detach().clone()
+
+        # plt.imshow(input_image.permute(1, 2, 0))
+        # plt.show()
 
         # @@@@@@@@@@@@@@@@@@ DCE-Net @@@@@@@@@@@@@@@@@@ #
         # Create Curve maps for input image x.
@@ -61,6 +80,7 @@ class ZeroDCE(torch.nn.Module):
 
         # Last layer that produces the curve maps.
         x = self._layers[self._layers_num - 1](x)
+        print(x.shape)
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         # TODO Implement
@@ -86,26 +106,19 @@ if __name__ == '__main__':
     print(zero_dce)
 
     # ~~~ Testing stuff ~~~
-    # transform = transforms.Compose([
-    #     # transforms.Resize(256),
-    #     # transforms.CenterCrop(224),
-    #     transforms.ToTensor(),
-    #     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-    # ])
-    # dummy_input = transform(np.ones(shape=(256, 256, 3), dtype=np.float32))
+    test_image = Image.open('../img.png').convert('RGB')
 
-    dummy_input = torch.randn(1, 3, 256, 256)
-    out = zero_dce(x=dummy_input)
+    # plt.imshow(test_image)
+    # plt.show()
+
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize([256, 256]),
+        # transforms.CenterCrop(224),
+        # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
+    ])
+    test_input = transform(test_image)
+    test_input = test_input[None, :, :, :]
+
+    out = zero_dce(x=test_input)
     # print(out)
-
-    # # ------------------------------ #
-    # # TODO Debugging visualizations  #
-    # # ------------------------------ #
-    # import torchvision
-    # from torchview import draw_graph
-    #
-    # model = ZeroDCE(config=config)
-    # # if torch.cuda.is_available():
-    # #     model.to('cuda')
-    # model_graph = draw_graph(model, input_size=(1, 3, 256, 256), expand_nested=True)
-    # # model_graph.visual_graph
