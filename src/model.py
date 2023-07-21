@@ -1,7 +1,7 @@
 import torch
 
 import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 from PIL import Image
 
@@ -138,9 +138,6 @@ if __name__ == '__main__':
 
     # ~~~ Testing stuff ~~~
     test_image = Image.open('../img.png').convert('RGB')
-
-    # plt.imshow(test_image)
-    # plt.show()
 
     transform = transforms.Compose([
         transforms.ToTensor(),

@@ -1,7 +1,5 @@
 import os
 
-import matplotlib.pyplot as plt
-
 from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
 
@@ -54,18 +52,20 @@ def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size):
     # Initialize datasets of LOL dataset.
     datasets_dict = {}
 
-    for dataset_type in [TRAIN_DIR_NAME, TEST_DIR_NAME]:
-        images_dir_path = os.path.join(data_dir, dataset_type, LEDataset.LOW_LIGHT_DIR_NAME)
-        enhanced_images_dir_path = os.path.join(data_dir, dataset_type, LEDataset.ENHANCED_DIR_NAME)
+    for dataset_dir in [train_dir_name, test_dir_name]:
+        images_dir_path = os.path.join(data_dir, dataset_dir, LEDataset.LOW_LIGHT_DIR_NAME)
+        enhanced_images_dir_path = os.path.join(data_dir, dataset_dir, LEDataset.ENHANCED_DIR_NAME)
 
         print(images_dir_path)
         print(enhanced_images_dir_path)
 
-        datasets_dict[dataset_type] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path)
+        datasets_dict[dataset_dir] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path)
 
     train_dataloader = DataLoader(datasets_dict[TRAIN_DIR_NAME], batch_size=batch_size, shuffle=True)
     test_dataloader = DataLoader(datasets_dict[TEST_DIR_NAME], batch_size=batch_size, shuffle=True)
 
+    # import matplotlib.pyplot as plt
+    #
     # # Display image and label.
     # images_batch, enhanced_images_batch = next(iter(train_dataloader))
     #
