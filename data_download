@@ -6,8 +6,8 @@ and its corresponding well-exposed reference image.
 -------------
 How to download the data:
 
-    - pip install gdown
     - mkdir data
     - cd data
+    - pip install gdown
     - gdown https://drive.google.com/uc?id=1DdGIJ4PZPlF2ikl8mNM9V-PdVxVLbQi6
     - tar -xf lol_dataset.zip
