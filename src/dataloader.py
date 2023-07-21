@@ -30,7 +30,7 @@ class LEDataset(Dataset):
     def read_image_with_index_from_dir(directory, file_name):
         img_path = os.path.join(directory, file_name)
 
-        return read_image(img_path)  # numpy to tensor.
+        return read_image(img_path)
 
     def __getitem__(self, idx):
 
@@ -47,7 +47,7 @@ class LEDataset(Dataset):
         return image, enhanced_image
 
 
-def get_datasets(data_dir, train_dir_name, test_dir_name):
+def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size):
 
     # TODO Add transforms
 
@@ -63,8 +63,8 @@ def get_datasets(data_dir, train_dir_name, test_dir_name):
 
         datasets_dict[dataset_type] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path)
 
-    train_dataloader = DataLoader(datasets_dict[TRAIN_DIR_NAME], batch_size=64, shuffle=True)
-    test_dataloader = DataLoader(datasets_dict[TEST_DIR_NAME], batch_size=64, shuffle=True)
+    train_dataloader = DataLoader(datasets_dict[TRAIN_DIR_NAME], batch_size=batch_size, shuffle=True)
+    test_dataloader = DataLoader(datasets_dict[TEST_DIR_NAME], batch_size=batch_size, shuffle=True)
 
     # # Display image and label.
     # images_batch, enhanced_images_batch = next(iter(train_dataloader))
@@ -87,4 +87,6 @@ if __name__ == '__main__':
     TRAIN_DIR_NAME = 'our485'
     TEST_DIR_NAME = 'eval15'
 
-    get_datasets(data_dir=DATA_DIR, train_dir_name=TRAIN_DIR_NAME, test_dir_name=TEST_DIR_NAME)
+    BATCH_SIZE = 64
+
+    get_datasets(data_dir=DATA_DIR, train_dir_name=TRAIN_DIR_NAME, test_dir_name=TEST_DIR_NAME, batch_size=BATCH_SIZE)
