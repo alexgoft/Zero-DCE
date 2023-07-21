@@ -1,0 +1,13 @@
+The LoL Dataset has been created for low-light image enhancement.
+It provides 485 images for training and 15 for testing.
+Each image pair in the dataset consists of a low-light input image
+and its corresponding well-exposed reference image.
+
+-------------
+How to download the data:
+
+    - pip install gdown
+    - mkdir data
+    - cd data
+    - gdown https://drive.google.com/uc?id=1DdGIJ4PZPlF2ikl8mNM9V-PdVxVLbQi6
+    - tar -xf lol_dataset.zip
