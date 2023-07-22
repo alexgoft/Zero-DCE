@@ -99,26 +99,13 @@ class ZeroDCE(torch.nn.Module):
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         le = input_image
 
-        # In the paper they use LEn and LEn/2 to calculate Spatial Consistency Loss TODO Make sure
-        middle_le = None
-
         for i in range(self._iterations_num):
             print(f'Iteration #: {i + 1}')
 
             alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
 
-            if i == self._iterations_num // 2:
-                middle_le = le
-
-        import matplotlib.pyplot as plt
-
-        plt.imshow(input_image[0].permute(1, 2, 0))
-        plt.show()
-        plt.imshow(le[0].detach().numpy().transpose(1, 2, 0))
-        plt.show()
-
-        return le, middle_le
+        return le
 
 
 if __name__ == '__main__':

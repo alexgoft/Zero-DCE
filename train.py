@@ -1,8 +1,11 @@
 import os
 
+import torch
+
 import torchvision.transforms as transforms
 
 from src.dataloader import get_datasets
+from src.losses import Loss
 from src.model import ZeroDCE
 
 # ---------------------------------------- DATA --------------------------------------- #
@@ -35,8 +38,14 @@ def train(config):
     # TODO 1 All global configurable to a YAML configuration.
     # TODO 2 Wire losses and implement them.
 
+    # Model
     model = ZeroDCE(config=MODEL_CONFIG)
 
+    # loss function and optimizer
+    loss_fn = Loss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+
+    # Data
     train_data, test_data = get_datasets(data_dir=DATA_DIR,
                                          train_dir_name=TRAIN_DIR_NAME, test_dir_name=TEST_DIR_NAME,
                                          batch_size=BATCH_SIZE,
@@ -44,9 +53,16 @@ def train(config):
 
     for epoch_num in range(NUM_EPOCHS):
         for batch_num, (train_low_light, train_high_light) in enumerate(iter(train_data)):
-            train_low_light_enhanced, _ = model(train_low_light)
 
-            # TODO Loss calculations below.
+            # feedforward and calculate loss
+            train_low_light_enhanced = model(train_low_light)
+            loss = loss_fn(train_low_light, train_low_light_enhanced)
+
+            # backward pass and update weights
+            optimizer.zero_grad()
+            # loss.backward() TODO Needed?
+
+            optimizer.step()
 
 
 if __name__ == '__main__':
