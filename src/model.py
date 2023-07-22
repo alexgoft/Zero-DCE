@@ -1,7 +1,6 @@
 import torch
 
 import torchvision.transforms as transforms
-# import matplotlib.pyplot as plt
 
 from PIL import Image
 
@@ -77,9 +76,6 @@ class ZeroDCE(torch.nn.Module):
 
     def forward(self, x):
 
-        # plt.imshow(x[0].permute(1, 2, 0))
-        # plt.show()
-
         input_image = x.detach().clone()
 
         # @@@@@@@@@@@@@@@@@@ DCE-Net @@@@@@@@@@@@@@@@@@ #
@@ -99,7 +95,6 @@ class ZeroDCE(torch.nn.Module):
 
         # Last layer that produces the curve maps.
         x = self._layers[self._layers_num - 1](x)
-        print(x.shape)
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         le = input_image
@@ -116,10 +111,14 @@ class ZeroDCE(torch.nn.Module):
             if i == self._iterations_num // 2:
                 middle_le = le
 
-        # plt.imshow(le[0].detach().numpy().transpose(1, 2, 0))
-        # plt.show()
+        import matplotlib.pyplot as plt
 
-        return middle_le, le
+        plt.imshow(input_image[0].permute(1, 2, 0))
+        plt.show()
+        plt.imshow(le[0].detach().numpy().transpose(1, 2, 0))
+        plt.show()
+
+        return le, middle_le
 
 
 if __name__ == '__main__':

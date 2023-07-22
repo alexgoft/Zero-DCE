@@ -1,5 +1,6 @@
 import os
 
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 from torchvision.io import read_image
 
@@ -19,16 +20,12 @@ class LEDataset(Dataset):
         self.target_transform = target_transform
 
     def __len__(self):
-        return len(self.enhanced_img_dir)
-
-    def get_files_in_path(self):
-        pass
+        return len(self.image_names)
 
     @staticmethod
     def read_image_with_index_from_dir(directory, file_name):
         img_path = os.path.join(directory, file_name)
-
-        return read_image(img_path)
+        return Image.open(img_path)
 
     def __getitem__(self, idx):
 
@@ -45,9 +42,7 @@ class LEDataset(Dataset):
         return image, enhanced_image
 
 
-def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size):
-
-    # TODO Add transforms
+def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size, transform, shuffle=True):
 
     # Initialize datasets of LOL dataset.
     datasets_dict = {}
@@ -59,10 +54,11 @@ def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size):
         print(images_dir_path)
         print(enhanced_images_dir_path)
 
-        datasets_dict[dataset_dir] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path)
+        datasets_dict[dataset_dir] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path,
+                                               transform=transform, target_transform=transform)
 
-    train_dataloader = DataLoader(datasets_dict[TRAIN_DIR_NAME], batch_size=batch_size, shuffle=True)
-    test_dataloader = DataLoader(datasets_dict[TEST_DIR_NAME], batch_size=batch_size, shuffle=True)
+    train_dataloader = DataLoader(datasets_dict[train_dir_name], batch_size=batch_size, shuffle=shuffle)
+    test_dataloader = DataLoader(datasets_dict[test_dir_name], batch_size=batch_size, shuffle=shuffle)
 
     # import matplotlib.pyplot as plt
     #
@@ -79,14 +75,3 @@ def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size):
     # plt.show()
 
     return train_dataloader, test_dataloader
-
-
-if __name__ == '__main__':
-    DATA_DIR = '..\\data\\lol_dataset'
-
-    TRAIN_DIR_NAME = 'our485'
-    TEST_DIR_NAME = 'eval15'
-
-    BATCH_SIZE = 64
-
-    get_datasets(data_dir=DATA_DIR, train_dir_name=TRAIN_DIR_NAME, test_dir_name=TEST_DIR_NAME, batch_size=BATCH_SIZE)
