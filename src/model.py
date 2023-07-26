@@ -45,7 +45,8 @@ class ZeroDCE(torch.nn.Module):
                 out_channels=self._layers_width,
                 padding=self._PADDING,
                 kernel_size=self._KERNEL_SHAPE,
-                stride=self._STRIDE
+                stride=self._STRIDE,
+                # device='cuda' if torch.cuda.is_available() else 'cpu',
             )
 
             layers.append(conv)
@@ -100,7 +101,7 @@ class ZeroDCE(torch.nn.Module):
         le = input_image
 
         for i in range(self._iterations_num):
-            print(f'Iteration #: {i + 1}')
+            # print(f'Iteration #: {i + 1}')
 
             alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)

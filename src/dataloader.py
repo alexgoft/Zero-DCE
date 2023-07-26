@@ -11,13 +11,16 @@ class LEDataset(Dataset):
 
     _IMAGE_TYPE = 'png'
 
-    def __init__(self, img_dir, enhanced_img_dir, transform=None, target_transform=None):
+    def __init__(self, img_dir, enhanced_img_dir, device, transform=None, target_transform=None):
+        super(LEDataset, self).__init__()
         self.img_dir = img_dir
         self.enhanced_img_dir = enhanced_img_dir
         self.image_names = [path for path in os.listdir(self.img_dir) if path.endswith(self._IMAGE_TYPE)]
 
         self.transform = transform
         self.target_transform = target_transform
+
+        self.device = device
 
     def __len__(self):
         return len(self.image_names)
@@ -39,10 +42,14 @@ class LEDataset(Dataset):
         if self.target_transform:
             enhanced_image = self.target_transform(enhanced_image)
 
+        # # TODO Make sure memory is freed and not overflown.
+        # image.data = image.data.to(self.device)
+        # enhanced_image.data = image.data.to(self.device)
+
         return image, enhanced_image
 
 
-def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size, transform, shuffle=True):
+def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size, transform, device, shuffle=True):
 
     # Initialize datasets of LOL dataset.
     datasets_dict = {}
@@ -55,10 +62,14 @@ def get_datasets(data_dir, train_dir_name, test_dir_name, batch_size, transform,
         print(enhanced_images_dir_path)
 
         datasets_dict[dataset_dir] = LEDataset(img_dir=images_dir_path, enhanced_img_dir=enhanced_images_dir_path,
-                                               transform=transform, target_transform=transform)
+                                               transform=transform, target_transform=transform,
+                                               device=device)
 
-    train_dataloader = DataLoader(datasets_dict[train_dir_name], batch_size=batch_size, shuffle=shuffle)
-    test_dataloader = DataLoader(datasets_dict[test_dir_name], batch_size=batch_size, shuffle=shuffle)
+    from torch.utils.data.dataloader import default_collate
+
+    collate_fn = lambda x: tuple(x_.to(device) for x_ in default_collate(x))
+    train_dataloader = DataLoader(datasets_dict[train_dir_name], batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
+    test_dataloader = DataLoader(datasets_dict[test_dir_name], batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)
 
     # import matplotlib.pyplot as plt
     #
