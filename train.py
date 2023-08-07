@@ -1,8 +1,7 @@
-import os
-
 import torch
 
 import torchvision.transforms as transforms
+
 from torch.autograd import Variable
 from tqdm import tqdm
 
@@ -23,8 +22,8 @@ IMAGES_TRANSFORM = transforms.Compose([
     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
 ])
 # ---------------------------------------- TRAIN -------------------------------------- #
-BATCH_SIZE = 16
-NUM_EPOCHS = 10
+BATCH_SIZE = 8
+NUM_EPOCHS = 100
 
 # ---------------------------------------- MODEL -------------------------------------- #
 MODEL_CONFIG = {
@@ -35,12 +34,10 @@ MODEL_CONFIG = {
 }
 
 
+# TODO 1 All global configurable to a YAML configuration.
 def train(config):
-    # TODO 1 All global configurable to a YAML configuration.
-    # TODO 2 Wire losses and implement them.
-    # TODO 3 Make sure
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     # Model
     model = ZeroDCE(config=MODEL_CONFIG)
@@ -49,7 +46,7 @@ def train(config):
 
     # loss function and optimizer
     loss_fn = Loss(device=device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 
     # Data
     train_data, test_data = get_datasets(data_dir=DATA_DIR,
@@ -64,20 +61,18 @@ def train(config):
 
             # feedforward and calculate loss
             train_low_light_enhanced = model(train_low_light)
-            total_loss, losses_dict = loss_fn(train_low_light, train_low_light_enhanced)
 
-            # Backpropagation
-            # TODO DOES IT EVEN WORK?
-            total_loss = Variable(total_loss, requires_grad=True)
-            total_loss.requires_grad = True
+            # Compute the loss and its gradients
+            total_loss, losses_dict = loss_fn(train_low_light, train_low_light_enhanced)
             total_loss.backward()
 
-            optimizer.step()
+            # Backpropagation
+            # Zero your gradients for every batch and Adjust learning weights
             optimizer.zero_grad()
+            optimizer.step()
 
-            #
-            # pbar.set_description(f'EPOCH NUM: {epoch_num}, BATCH NUM: {batch_num}\n')
-        print(losses_dict)
+            pbar.set_description(f'EPOCH NUM: {epoch_num}, BATCH NUM: {batch_num}__{losses_dict}\n')
+        # print(losses_dict)
 
 
 if __name__ == '__main__':

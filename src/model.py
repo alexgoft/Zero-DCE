@@ -30,6 +30,9 @@ class ZeroDCE(torch.nn.Module):
         self._layers = self._initialize_dce_net_layers()
 
         self._model = torch.nn.Sequential(*self._layers)
+        print(self._model)
+
+        # TODO Initialize model weights as specified in the paper.
 
     def _initialize_dce_net_layers(self):
 
@@ -71,7 +74,7 @@ class ZeroDCE(torch.nn.Module):
             LE(I(x); α) is the enhanced version of the given input I(x),
             α ∈ [−1, 1] is the trainable curve parameter
         """
-        curr_le = prev_le + curr_alpha * (1 - prev_le)
+        curr_le = prev_le + curr_alpha * prev_le * (1 - prev_le)
 
         return curr_le
 
@@ -86,13 +89,17 @@ class ZeroDCE(torch.nn.Module):
         # First num_half_net_layers layers. Results will be connected to further layers.
         num_half_net_layers = (self._layers_num - 1) // 2
         for layer_num in range(num_half_net_layers):
+            # print(f'layer: {layer_num}')
             x = self._layers[layer_num](x)
 
             mid_results.append(x)
 
         # Skip connections layers.
         for layer_num in range(num_half_net_layers, self._layers_num - 1):
-            x = self._layers[layer_num](x) + mid_results[layer_num % num_half_net_layers]
+            # print(f'layer: {layer_num}, skip connection: {(num_half_net_layers - layer_num % num_half_net_layers) - 1 }')
+
+            layer_num_skip = (num_half_net_layers - layer_num % num_half_net_layers) - 1
+            x = self._layers[layer_num](x) + mid_results[layer_num_skip]
 
         # Last layer that produces the curve maps.
         x = self._layers[self._layers_num - 1](x)
@@ -100,39 +107,45 @@ class ZeroDCE(torch.nn.Module):
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         le = input_image
 
-        for i in range(self._iterations_num):
-            # print(f'Iteration #: {i + 1}')
+        # import matplotlib.pyplot as plt
 
+        for i in range(self._iterations_num):
+
+            # RGB_ALPHA_MAP is = (iteration_num + iteration_num + iteration_num, H, W)
             alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
+
+            # plt.title(f'Iteration: {i + 1}')
+            # plt.imshow(le.to('cpu').detach().numpy()[0].transpose(1, 2, 0))
+            # plt.show()
 
         return le
 
 
-if __name__ == '__main__':
-
-    config = {
-        ZeroDCE.INPUT_SIZE: 256,
-        # TODO At moment, to ease implementation even number of layers, is supported
-        #  (LAYERS_NUM - 1 is the number of layers in the DCE-NET. Last layer are the curve maps).
-        ZeroDCE.LAYERS_NUM: 7,
-        ZeroDCE.LAYERS_WIDTH: 32,
-        ZeroDCE.ITERATIONS_NUM: 8
-    }
-
-    zero_dce = ZeroDCE(config=config)
-    print(zero_dce)
-
-    # ~~~ Testing stuff ~~~
-    test_image = Image.open('../img.png').convert('RGB')
-
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Resize([256, 256]),
-        # transforms.CenterCrop(224),
-        # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-    ])
-    test_input = transform(test_image)
-    test_input = test_input[None, :, :, :]
-
-    zero_dce(x=test_input)
+# if __name__ == '__main__':
+#
+#     config = {
+#         ZeroDCE.INPUT_SIZE: 256,
+#         # TODO At moment, to ease implementation even number of layers, is supported
+#         #  (LAYERS_NUM - 1 is the number of layers in the DCE-NET. Last layer are the curve maps).
+#         ZeroDCE.LAYERS_NUM: 7,
+#         ZeroDCE.LAYERS_WIDTH: 32,
+#         ZeroDCE.ITERATIONS_NUM: 8
+#     }
+#
+#     zero_dce = ZeroDCE(config=config)
+#     print(zero_dce)
+#
+#     # ~~~ Testing stuff ~~~
+#     test_image = Image.open('../img.png').convert('RGB')
+#
+#     transform = transforms.Compose([
+#         transforms.ToTensor(),
+#         transforms.Resize([256, 256]),
+#         # transforms.CenterCrop(224),
+#         # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
+#     ])
+#     test_input = transform(test_image)
+#     test_input = test_input[None, :, :, :]
+#
+#     zero_dce(x=test_input)
