@@ -22,8 +22,8 @@ IMAGES_TRANSFORM = transforms.Compose([
     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
 ])
 # ---------------------------------------- TRAIN -------------------------------------- #
-BATCH_SIZE = 8
-NUM_EPOCHS = 100
+BATCH_SIZE = 4
+NUM_EPOCHS = 200
 
 # ---------------------------------------- MODEL -------------------------------------- #
 MODEL_CONFIG = {
@@ -46,7 +46,8 @@ def train(config):
 
     # loss function and optimizer
     loss_fn = Loss(device=device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=0.0001 )
 
     # Data
     train_data, test_data = get_datasets(data_dir=DATA_DIR,
@@ -71,8 +72,10 @@ def train(config):
             optimizer.zero_grad()
             optimizer.step()
 
-            pbar.set_description(f'EPOCH NUM: {epoch_num}, BATCH NUM: {batch_num}__{losses_dict}\n')
-        # print(losses_dict)
+            # torch.nn.utils.clip_grad_norm(model.parameters(), 0.1)
+
+            # pbar.set_description(f'EPOCH NUM: {epoch_num}, BATCH NUM: {batch_num}__{losses_dict}\n')
+        print(losses_dict)
 
 
 if __name__ == '__main__':

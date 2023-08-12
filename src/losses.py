@@ -6,6 +6,8 @@ import torch.nn.functional as F
 from torch import nn
 
 
+
+
 class Loss(torch.nn.Module):
     _EXP_LOSS_WINDOW = (16, 16)
     _WELL_EXPOSENESS_LEVEL = 0.6
@@ -53,18 +55,24 @@ class Loss(torch.nn.Module):
         loss_exp = self._exposure_control_loss(input_batch=images_batch)
         loss_col = self._color_constancy_loss(input_batch=images_batch)
         loss_spa = self._spatial_consistency_loss(input_batch=images_batch, gt_images_batch=gt_images_batch)
-        # loss_ilm = self._illumination_smoothness_loss(input_batch=enhanced_images)
+        loss_ilm = self._illumination_smoothness_loss(input_batch=images_batch)
 
-        total_loss = loss_exp + loss_col * self._w_col + loss_spa
+        total_loss = (10  * loss_exp) + \
+                     (5   * loss_col) + \
+                     (1   * loss_spa)
+                     # (200 * loss_ilm)
 
+        # TODO Below to constants.
         return total_loss, {
-            self._exposure_control_loss.__name__: loss_exp.mean(),
-            self._color_constancy_loss.__name__: loss_col.mean(),
-            self._spatial_consistency_loss.__name__: loss_spa,
-            # self._illumination_smoothness_loss.__name__: loss_ilm,
+            "total_loss": total_loss,
+            "illumination_smoothness_loss": loss_ilm,
+            "spatial_constancy_loss": loss_spa,
+            "color_constancy_loss": loss_col,
+            "exposure_loss": loss_exp,
         }
 
     def _spatial_consistency_loss(self, input_batch, gt_images_batch):
+
         # RGB is reduced to an average number per image in the batch.
         input_batch_mean = torch.mean(input_batch, dim=1, keepdim=True)
         gt_images_batch_mean = torch.mean(gt_images_batch, dim=1, keepdim=True)
@@ -113,21 +121,29 @@ class Loss(torch.nn.Module):
         """
         mean_per_channel = torch.mean(input_batch, dim=[2, 3],  keepdim=True).squeeze()
 
-        dist_rg = torch.square(mean_per_channel[:, self._R_IDX] - mean_per_channel[:, self._G_IDX])
-        dist_rb = torch.square(mean_per_channel[:, self._R_IDX] - mean_per_channel[:, self._B_IDX])
-        dist_gb = torch.square(mean_per_channel[:, self._G_IDX] - mean_per_channel[:, self._B_IDX])
+        try:
+            r, g, b = torch.split(mean_per_channel, 1, dim=1)
+        except:
+            # TODO Its a patch make it prettier
+            r, g, b = torch.split(mean_per_channel.unsqueeze(0), 1, dim=1)
+
+        dist_rg = torch.square(r - g)
+        dist_rb = torch.square(r - b)
+        dist_gb = torch.square(g - b)
 
         return torch.mean(dist_rg + dist_rb + dist_gb)
 
-    # def _illumination_smoothness_loss(self, input_batch):
-    #     """
-    #     preserve the monotonicity relations between neighboring pixels
-    #     """
-    #     sobel_x = None
-    #     sobel_y = None
-    #
-    #     # loss_sum_tensor = torch.zeros(input_batch.shape[0]).to(self.device)
-    #     # for ch_1, ch_2 in itertools.permutations([0, 1, 2], 2):  # 0/1/2 -> R/G/B
-    #     #     loss_sum_tensor += torch.square(mean_per_channel[:, ch_1] - mean_per_channel[:, ch_2])
-    #
-    #     return 0
+    def _illumination_smoothness_loss(self, input_batch):
+        """
+        preserve the monotonicity relations between neighboring pixels
+        """
+        sobel_x = None
+        sobel_y = None
+
+        # loss_sum_tensor = torch.zeros(input_batch.shape[0]).to(self.device)
+        # for ch_1, ch_2 in itertools.permutations([0, 1, 2], 2):  # 0/1/2 -> R/G/B
+        #     loss_sum_tensor += torch.square(mean_per_channel[:, ch_1] - mean_per_channel[:, ch_2])
+
+        return 0
+
+

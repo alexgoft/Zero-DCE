@@ -6,7 +6,6 @@ from PIL import Image
 
 
 class ZeroDCE(torch.nn.Module):
-
     LAYERS_NUM = 'layers_num'
     LAYERS_WIDTH = 'layers_width'
     ITERATIONS_NUM = 'iterations_num'
@@ -42,15 +41,34 @@ class ZeroDCE(torch.nn.Module):
         tanh = torch.nn.Tanh()
 
         # Every layer is followed by RELU, and the last is followed by tanh
-        for i in range(self._layers_num):
+        num_half_net_layers = (self._layers_num - 1) // 2
+
+        for layer_num in range(self._layers_num - 1):
+
+            out_layers = self._layers_width
+            in_layers = self._RGB_CHANNELS if layer_num == 0 else self._layers_width
+            # if layer_num >= num_half_net_layers:
+            #     in_layers *= 2
+
+            # print((num_half_net_layers - i % num_half_net_layers) - 1)
             conv = torch.nn.Conv2d(
-                in_channels=self._RGB_CHANNELS if i == 0 else self._layers_width,
-                out_channels=self._layers_width,
+                in_channels=in_layers,
+                out_channels=out_layers,
                 padding=self._PADDING,
                 kernel_size=self._KERNEL_SHAPE,
                 stride=self._STRIDE,
                 # device='cuda' if torch.cuda.is_available() else 'cpu',
             )
+
+            # if layer_num >= num_half_net_layers:
+            #     layer_skipped_from_unm = (num_half_net_layers - layer_num % num_half_net_layers) - 1
+            #     skipped_from_layer = layers[layer_skipped_from_unm]
+            #
+            #     conv = torch.concatenate((skipped_from_layer, conv))
+            #
+            #     print(f'{layer_num} to {skipped_from_layer}')
+            # else:
+            #     print(layer_num)
 
             layers.append(conv)
             layers.append(relu)
@@ -74,7 +92,7 @@ class ZeroDCE(torch.nn.Module):
             LE(I(x); α) is the enhanced version of the given input I(x),
             α ∈ [−1, 1] is the trainable curve parameter
         """
-        curr_le = prev_le + curr_alpha * prev_le * (1 - prev_le)
+        curr_le = prev_le + curr_alpha * (torch.square(prev_le) - prev_le)
 
         return curr_le
 
@@ -87,22 +105,20 @@ class ZeroDCE(torch.nn.Module):
         mid_results = []
 
         # First num_half_net_layers layers. Results will be connected to further layers.
-        num_half_net_layers = (self._layers_num - 1) // 2
-        for layer_num in range(num_half_net_layers):
-            # print(f'layer: {layer_num}')
+        for layer_num in range(self._layers_num - 1):
             x = self._layers[layer_num](x)
-
-            mid_results.append(x)
+            if layer_num % 2 != 0:  # Save intermediate results after activations.
+                mid_results.append(x)
 
         # Skip connections layers.
-        for layer_num in range(num_half_net_layers, self._layers_num - 1):
-            # print(f'layer: {layer_num}, skip connection: {(num_half_net_layers - layer_num % num_half_net_layers) - 1 }')
-
-            layer_num_skip = (num_half_net_layers - layer_num % num_half_net_layers) - 1
-            x = self._layers[layer_num](x) + mid_results[layer_num_skip]
+        for layer_num in range(self._layers_num, (self._layers_num * 2) - 1):
+            x = self._layers[layer_num](x)
+            if layer_num % 2 != 0:  # Save intermediate results after activations.
+                layer_num_skip = (2 * len(mid_results)) - (layer_num // 2) - 1
+                x += mid_results[layer_num_skip]
 
         # Last layer that produces the curve maps.
-        x = self._layers[self._layers_num - 1](x)
+        x = self._layers[-1](x)
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         le = input_image
@@ -115,12 +131,11 @@ class ZeroDCE(torch.nn.Module):
             alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
 
-            # plt.title(f'Iteration: {i + 1}')
+            # plt.title(f'Iteration: 8{i + 1}')
             # plt.imshow(le.to('cpu').detach().numpy()[0].transpose(1, 2, 0))
             # plt.show()
 
         return le
-
 
 # if __name__ == '__main__':
 #
