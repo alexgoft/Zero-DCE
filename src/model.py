@@ -115,7 +115,7 @@ class ZeroDCE(torch.nn.Module):
             x = self._layers[layer_num](x)
             if layer_num % 2 != 0:  # Save intermediate results after activations.
                 layer_num_skip = (2 * len(mid_results)) - (layer_num // 2) - 1
-                x += mid_results[layer_num_skip]
+                x = x + mid_results[layer_num_skip]
 
         # Last layer that produces the curve maps.
         x = self._layers[-1](x)
