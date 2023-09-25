@@ -3,6 +3,7 @@ import time
 import torch
 
 import torchvision.transforms as transforms
+from tqdm import tqdm
 
 from src.data import get_datasets
 from src.losses import Loss
@@ -24,7 +25,7 @@ IMAGES_TRANSFORM = transforms.Compose([
 ])
 # ---------------------------------------- TRAIN -------------------------------------- #
 BATCH_SIZE = 8
-VALIDATION_SPLIT = 0.15
+VALIDATION_SPLIT = 1  # 0.15
 NUM_EPOCHS = 200
 LEARNING_RATE = 0.0001
 WEIGHT_DECAY = 0.0001
@@ -57,13 +58,13 @@ def train(config):
     print(model)
 
     # Datasets
-    train_dir_path = os.path.join(DATA_DIR, TRAIN_DIR_NAME, 'low')
-    val_dir_path = os.path.join(DATA_DIR, TRAIN_DIR_NAME, 'low')
+    train_dir_path = os.path.join(DATA_DIR, TRAIN_DIR_NAME)
+    val_dir_path = os.path.join(DATA_DIR, VAL_DIR_NAME)
 
-    train_data, val_data = get_datasets(
-        images_path=train_dir_path, gts_path=val_dir_path,
-        transform_img=IMAGES_TRANSFORM, transform_ann=None,
-        val_split=VALIDATION_SPLIT, batch_size=BATCH_SIZE, device=device
+    # gts_path is empty string because we don't have ground truth images.
+    train_data, eval_data = get_datasets(
+        train_dir_path=train_dir_path, eval_dir_path=val_dir_path,
+        transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
     )
 
     # loss function and optimizer
@@ -75,41 +76,44 @@ def train(config):
     # Train Loop
     for epoch_num in range(NUM_EPOCHS):
 
-        # model.train()
-        # for batch_num, (train_low_light, train_high_light) in enumerate(train_data):
-        #     # Move data to device
-        #     train_low_light, train_high_light = train_low_light.to(device), train_high_light.to(device)
-        #
-        #     # feedforward and calculate loss
-        #     train_low_light_enhanced = model(train_low_light)
-        #     # _, train_low_light_enhanced, _ = model(train_low_light)
-        #
-        #     # Compute the loss and its gradients
-        #     total_loss, losses_dict = loss_fn(train_low_light, train_low_light_enhanced)
-        #     total_loss.backward()
-        #
-        #     # Backpropagation
-        #     # Zero your gradients for every batch and Adjust learning weights
-        #     optimizer.zero_grad()
-        #     optimizer.step()
-        #
-        #     print(f'[INFO] EPOCH NUM: {epoch_num}, BATCH NUM: {batch_num}__{losses_dict}\n')
+        train_loss = 0.0
+        model.train()
+        for batch_num, (train_low_light, train_high_light) in tqdm(enumerate(train_data), total=len(train_data)):
+
+            optimizer.zero_grad()
+
+            # Move data to device
+            train_low_light, train_high_light = train_low_light.to(device), train_high_light.to(device)
+
+            # feedforward and calculate loss
+            train_low_light_enhanced = model(train_low_light)
+            # _, train_low_light_enhanced, _ = model(train_low_light)
+
+            # Compute the loss and its gradients
+            loss, losses_dict = loss_fn(train_low_light, train_low_light_enhanced)
+            loss.backward()
+            train_loss += loss.item()
+
+            # Backpropagation
+            # Zero your gradients for every batch and Adjust learning weights
+            optimizer.step()
+        print('[INFO] EPOCH NUM: {}, TRAINING LOSS: {}'.format(epoch_num + 1, train_loss / len(train_data)))
 
         # val_loss
         model.eval()
-        val_loss = 0
+        eval_loss = 0.0
         with torch.no_grad():
 
             # loop over the validation set
-            for (test_low_light, _) in val_data:
-                test_low_light = test_low_light.to(device)
+            for eval_low_light_images in tqdm(eval_data, total=len(eval_data)):
+                eval_low_light_images = eval_low_light_images.to(device)
 
-                image_half_enhanced, image_enhanced, _ = model(test_low_light)
+                image_half_enhanced, image_enhanced, _ = model(eval_low_light_images)
 
-                total_loss, losses_dict = loss_fn(images_batch=image_enhanced, image_half_enhanced=image_half_enhanced)
-                val_loss += total_loss.item()
-
-        val_loss = val_loss / len(val_data)
+                loss, losses_dict = loss_fn(image_enhanced=image_enhanced, image_half_enhanced=image_half_enhanced)
+                eval_loss += loss.item()
+        eval_loss = eval_loss / len(eval_data)
+        print('[INFO] EPOCH NUM: {}, VALIDATION LOSS: {}'.format(epoch_num + 1, eval_loss))
 
 
 if __name__ == '__main__':
