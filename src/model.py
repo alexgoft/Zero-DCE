@@ -3,6 +3,7 @@ import torch
 import torchvision.transforms as transforms
 
 from PIL import Image
+from torch import nn
 
 
 class ZeroDCE(torch.nn.Module):
@@ -17,8 +18,10 @@ class ZeroDCE(torch.nn.Module):
     _KERNEL_SHAPE = (3, 3)
     _PADDING = 1  # use padding 1 to keep same shape between convolutions.
 
-    def __init__(self, config):
+    def __init__(self, config, device):
         super(ZeroDCE, self).__init__()
+
+        self._device = device
 
         # Model params
         self._input_shape = config[self.INPUT_SIZE]
@@ -31,7 +34,13 @@ class ZeroDCE(torch.nn.Module):
         self._model = torch.nn.Sequential(*self._layers)
         print(self._model)
 
-        # TODO Initialize model weights as specified in the paper.
+        self._init_weights()
+
+    def _init_weights(self):
+        for layer in self._model:
+            if isinstance(layer, nn.Conv2d):
+                torch.nn.init.xavier_uniform(layer.weight)
+                layer.bias.data.fill_(0.01)
 
     def _initialize_dce_net_layers(self):
 
@@ -41,14 +50,9 @@ class ZeroDCE(torch.nn.Module):
         tanh = torch.nn.Tanh()
 
         # Every layer is followed by RELU, and the last is followed by tanh
-        num_half_net_layers = (self._layers_num - 1) // 2
-
         for layer_num in range(self._layers_num - 1):
-
             out_layers = self._layers_width
             in_layers = self._RGB_CHANNELS if layer_num == 0 else self._layers_width
-            # if layer_num >= num_half_net_layers:
-            #     in_layers *= 2
 
             # print((num_half_net_layers - i % num_half_net_layers) - 1)
             conv = torch.nn.Conv2d(
@@ -57,18 +61,8 @@ class ZeroDCE(torch.nn.Module):
                 padding=self._PADDING,
                 kernel_size=self._KERNEL_SHAPE,
                 stride=self._STRIDE,
-                # device='cuda' if torch.cuda.is_available() else 'cpu',
+                device=self._device,
             )
-
-            # if layer_num >= num_half_net_layers:
-            #     layer_skipped_from_unm = (num_half_net_layers - layer_num % num_half_net_layers) - 1
-            #     skipped_from_layer = layers[layer_skipped_from_unm]
-            #
-            #     conv = torch.concatenate((skipped_from_layer, conv))
-            #
-            #     print(f'{layer_num} to {skipped_from_layer}')
-            # else:
-            #     print(layer_num)
 
             layers.append(conv)
             layers.append(relu)
@@ -121,15 +115,13 @@ class ZeroDCE(torch.nn.Module):
         x = self._layers[-1](x)
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
+        alpha_maps = torch.split(x, split_size_or_sections=3, dim=1)
+
         le = input_image
         le_middle = None
 
-        for i in range(self._iterations_num):
-
-            # RGB_ALPHA_MAP is = (iteration_num + iteration_num + iteration_num, H, W)
-            alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
+        for i, alpha_i in enumerate(alpha_maps):
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
-
             if i == self._iterations_num // 2:
                 le_middle = le
 

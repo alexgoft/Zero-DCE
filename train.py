@@ -24,7 +24,7 @@ IMAGES_TRANSFORM = transforms.Compose([
     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
 ])
 # ---------------------------------------- TRAIN -------------------------------------- #
-BATCH_SIZE = 4
+BATCH_SIZE = 8
 VALIDATION_SPLIT = 1  # 0.15
 NUM_EPOCHS = 200
 LEARNING_RATE = 0.0001
@@ -50,8 +50,8 @@ def train(config):
     os.makedirs(output_dir_path)
 
     # Model
-    # model = ZeroDCE(config=MODEL_CONFIG)
-    model = enhance_net_nopool()
+    model = ZeroDCE(config=MODEL_CONFIG, device=device)
+    # model = enhance_net_nopool()
     model.to(device)
     model.train()
     print(model)
@@ -78,17 +78,16 @@ def train(config):
         model.train()
         for batch_num, train_low_light in enumerate(train_data):
             print('[INFO]\tEPOCH NUM: {}, BATCH NUM: {}/{}'.format(epoch_num + 1, batch_num + 1, len(train_data)))
-            if batch_num == 10:
-                break
+
             train_low_light = train_low_light.to(device)
 
             # feedforward
-            image_half_enhanced, image_enhanced, _ = model(train_low_light)
-            # _, train_low_light_enhanced, _ = model(train_low_light)
+            # image_enhanced, image_half_enhanced, _ = model(train_low_light)
+            train_low_light_enhanced, image_half_enhanced = model(train_low_light)
 
             optimizer.zero_grad()
 
-            loss, losses_dict = loss_fn(image_enhanced=image_enhanced, image_half_enhanced=image_half_enhanced)
+            loss, losses_dict = loss_fn(image_enhanced=train_low_light_enhanced, image_half_enhanced=image_half_enhanced)
             loss.backward()
             train_loss += loss.item()
 
@@ -107,7 +106,7 @@ def train(config):
 
                 eval_low_light_images = eval_low_light_images.to(device)
 
-                image_half_enhanced, image_enhanced, _ = model(eval_low_light_images)
+                image_half_enhanced, image_enhanced = model(eval_low_light_images)
 
                 loss, losses_dict = loss_fn(image_enhanced=image_enhanced, image_half_enhanced=image_half_enhanced)
                 eval_loss += loss.item()
