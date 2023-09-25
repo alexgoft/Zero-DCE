@@ -20,7 +20,7 @@ class LEDataset(Dataset):
         # self.enhanced_img_paths = enhanced_img_paths
 
         self.transform = transform
-        self.target_transform = target_transform
+        # self.target_transform = target_transform
 
         self.device = device
 
