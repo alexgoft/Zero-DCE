@@ -6,15 +6,9 @@ import torch.nn.functional as F
 from torch import nn
 
 
-
-
 class Loss(torch.nn.Module):
     _EXP_LOSS_WINDOW = (16, 16)
-    _WELL_EXPOSENESS_LEVEL = 0.6
-
-    _R_IDX = 0
-    _G_IDX = 1
-    _B_IDX = 2
+    _WELL_EXPOSENESS_LEVEL = 0.5
 
     def __init__(self, device):
         super(Loss, self).__init__()
@@ -33,10 +27,18 @@ class Loss(torch.nn.Module):
         # -- spatial consistency loss -- #
         # Kernels for spatial consistency loss. This will be used to calculate the
         # difference between adjacent patches in
-        self._left_kernel = torch.FloatTensor([[0, 0, 0], [-1, 1, 0], [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
-        self._right_kernel = torch.FloatTensor([[0, 0, 0], [0, 1, -1], [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
-        self._top_kernel = torch.FloatTensor([[0, -1, 0], [0, 1, 0], [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
-        self._down_kernel = torch.FloatTensor([[0, 0, 0], [0, 1, 0], [0, -1, 0]]).cuda().unsqueeze(0).unsqueeze(0)
+        self._left_kernel = torch.FloatTensor([[0, 0, 0],
+                                               [-1, 1, 0],
+                                               [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
+        self._right_kernel = torch.FloatTensor([[0, 0, 0],
+                                                [0, 1, -1],
+                                                [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
+        self._top_kernel = torch.FloatTensor([[0, -1, 0],
+                                              [0, 1, 0],
+                                              [0, 0, 0]]).cuda().unsqueeze(0).unsqueeze(0)
+        self._down_kernel = torch.FloatTensor([[0, 0, 0],
+                                               [0, 1, 0],
+                                               [0, -1, 0]]).cuda().unsqueeze(0).unsqueeze(0)
 
         # TODO Make sure whether i really need whats below.
         self._weight_left = nn.Parameter(data=self._left_kernel, requires_grad=False)
@@ -44,23 +46,17 @@ class Loss(torch.nn.Module):
         self._weight_up = nn.Parameter(data=self._top_kernel, requires_grad=False)
         self._weight_down = nn.Parameter(data=self._down_kernel, requires_grad=False)
 
-    def forward(self, gt_images_batch, images_batch):
-        # import matplotlib.pyplot as plt
-        #
-        # plt.imshow(images[0].detach().numpy().transpose(1, 2, 0))
-        # plt.show()
-        # plt.imshow(enhanced_images[0].detach().numpy().transpose(1, 2, 0))
-        # plt.show()
+    def forward(self, images_batch, half_e_images_batch):
 
         loss_exp = self._exposure_control_loss(input_batch=images_batch)
         loss_col = self._color_constancy_loss(input_batch=images_batch)
-        loss_spa = self._spatial_consistency_loss(input_batch=images_batch, gt_images_batch=gt_images_batch)
+        loss_spa = self._spatial_consistency_loss(input_batch=images_batch, gt_images_batch=half_e_images_batch)
         loss_ilm = self._illumination_smoothness_loss(input_batch=images_batch)
 
-        total_loss = (10  * loss_exp) + \
-                     (5   * loss_col) + \
-                     (1   * loss_spa)
-                     # (200 * loss_ilm)
+        total_loss = (1 * loss_exp) + \
+                     (self._w_col * loss_col) + \
+                     (1 * loss_spa) + \
+                     (self._w_ilm * loss_ilm)
 
         # TODO Below to constants.
         return total_loss, {
@@ -70,34 +66,6 @@ class Loss(torch.nn.Module):
             "color_constancy_loss": loss_col,
             "exposure_loss": loss_exp,
         }
-
-    def _spatial_consistency_loss(self, input_batch, gt_images_batch):
-
-        # RGB is reduced to an average number per image in the batch.
-        input_batch_mean = torch.mean(input_batch, dim=1, keepdim=True)
-        gt_images_batch_mean = torch.mean(gt_images_batch, dim=1, keepdim=True)
-
-        # Every cell is a mean value of a patch in the input and corresponding "GT".
-        # TODO Initialize pooling in _init_
-        input_batch_pool = torch.nn.AvgPool2d(4, 4, padding=0)(input_batch_mean)
-        gt_images_batch_pool = torch.nn.AvgPool2d(4, 4, padding=0)(gt_images_batch_mean)
-
-        images_left_diff = F.conv2d(input_batch_pool, self._left_kernel, padding=1)
-        images_right_diff = F.conv2d(input_batch_pool, self._right_kernel, padding=1)
-        images_top_diff = F.conv2d(input_batch_pool, self._top_kernel, padding=1)
-        images_down_diff = F.conv2d(input_batch_pool, self._down_kernel, padding=1)
-
-        gt_images_left_diff = F.conv2d(gt_images_batch_pool, self._left_kernel, padding=1)
-        gt_images_right_diff = F.conv2d(gt_images_batch_pool, self._right_kernel, padding=1)
-        gt_images_top_diff = F.conv2d(gt_images_batch_pool, self._top_kernel, padding=1)
-        gt_images_down_diff = F.conv2d(gt_images_batch_pool, self._down_kernel, padding=1)
-
-        left_sqr = torch.square(images_left_diff - gt_images_left_diff)
-        right_sqr = torch.square(images_right_diff - gt_images_right_diff)
-        top_sqr = torch.square(images_top_diff - gt_images_top_diff)
-        down_sqr = torch.square(images_down_diff - gt_images_down_diff)
-
-        return torch.mean(left_sqr + right_sqr + top_sqr + down_sqr, dim=[2, 3]).mean()
 
     def _exposure_control_loss(self, input_batch):
         """
@@ -110,7 +78,9 @@ class Loss(torch.nn.Module):
 
         # Instead splitting the image to patches, it'd be much faster utilizing average pooling
         # with kernel of 16x16 (as defined in the paper) and stride of 16 and no padding.
-        l1_dist = torch.abs(patched_batch - self._WELL_EXPOSENESS_LEVEL)
+
+        # l1_dist = torch.abs(patched_batch - self._WELL_EXPOSENESS_LEVEL)
+        l1_dist = torch.pow(patched_batch - torch.FloatTensor([self._WELL_EXPOSENESS_LEVEL]).cuda(), 2)
 
         return torch.mean(l1_dist.mean(dim=[2, 3]))
 
@@ -119,19 +89,44 @@ class Loss(torch.nn.Module):
         Loss to correct the potential color deviations in the enhanced
         image and also build the relations among the three adjusted channels.
         """
-        mean_per_channel = torch.mean(input_batch, dim=[2, 3],  keepdim=True).squeeze()
+        mean_per_channel = torch.mean(input_batch, dim=[2, 3], keepdim=True).squeeze()
 
-        try:
-            r, g, b = torch.split(mean_per_channel, 1, dim=1)
-        except:
-            # TODO Its a patch make it prettier
-            r, g, b = torch.split(mean_per_channel.unsqueeze(0), 1, dim=1)
+        r, g, b = torch.split(mean_per_channel, 1, dim=1)
 
         dist_rg = torch.square(r - g)
         dist_rb = torch.square(r - b)
         dist_gb = torch.square(g - b)
 
-        return torch.mean(dist_rg + dist_rb + dist_gb)
+        # return torch.mean(dist_rg + dist_rb + dist_gb)
+        return torch.mean(torch.sqrt(torch.square(dist_rg) + torch.square(dist_rb) + torch.square(dist_gb)))
+
+    def _spatial_consistency_loss(self, input_batch, gt_images_batch):
+
+        # RGB is reduced to an average number per image in the batch.
+        input_batch_mean = torch.mean(input_batch, dim=1, keepdim=True)
+        gt_images_batch_mean = torch.mean(gt_images_batch, dim=1, keepdim=True)
+
+        # Every cell is a mean value of a patch in the input and corresponding "GT".
+        # TODO Initialize pooling in _init_
+        input_batch_pool = torch.nn.AvgPool2d(4, 4, padding=0)(input_batch_mean)
+        gt_images_batch_pool = torch.nn.AvgPool2d(4, 4, padding=0)(gt_images_batch_mean)
+
+        images_left_diff = F.conv2d(input_batch_pool, self._weight_left, padding=1)
+        images_right_diff = F.conv2d(input_batch_pool, self._weight_right, padding=1)
+        images_top_diff = F.conv2d(input_batch_pool, self._weight_up, padding=1)
+        images_down_diff = F.conv2d(input_batch_pool, self._weight_down, padding=1)
+
+        gt_images_left_diff = F.conv2d(gt_images_batch_pool, self._weight_right, padding=1)
+        gt_images_right_diff = F.conv2d(gt_images_batch_pool, self._weight_right, padding=1)
+        gt_images_top_diff = F.conv2d(gt_images_batch_pool, self._weight_up, padding=1)
+        gt_images_down_diff = F.conv2d(gt_images_batch_pool, self._weight_down, padding=1)
+
+        left_sqr = torch.square(images_left_diff - gt_images_left_diff)
+        right_sqr = torch.square(images_right_diff - gt_images_right_diff)
+        top_sqr = torch.square(images_top_diff - gt_images_top_diff)
+        down_sqr = torch.square(images_down_diff - gt_images_down_diff)
+
+        return torch.mean(left_sqr + right_sqr + top_sqr + down_sqr, dim=[2, 3]).mean()
 
     def _illumination_smoothness_loss(self, input_batch):
         """
@@ -140,10 +135,12 @@ class Loss(torch.nn.Module):
         sobel_x = None
         sobel_y = None
 
-        # loss_sum_tensor = torch.zeros(input_batch.shape[0]).to(self.device)
-        # for ch_1, ch_2 in itertools.permutations([0, 1, 2], 2):  # 0/1/2 -> R/G/B
-        #     loss_sum_tensor += torch.square(mean_per_channel[:, ch_1] - mean_per_channel[:, ch_2])
+        batch_size = input_batch.size()[0]
+        h_x = input_batch.size()[2]
+        w_x = input_batch.size()[3]
+        count_h = (input_batch.size()[2] - 1) * input_batch.size()[3]
+        count_w = input_batch.size()[2] * (input_batch.size()[3] - 1)
+        h_tv = torch.pow((input_batch[:, :, 1:, :] - input_batch[:, :, :h_x - 1, :]), 2).sum()
+        w_tv = torch.pow((input_batch[:, :, :, 1:] - input_batch[:, :, :, :w_x - 1]), 2).sum()
 
-        return 0
-
-
+        return 2 * (h_tv / count_h + w_tv / count_w) / batch_size

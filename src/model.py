@@ -122,8 +122,7 @@ class ZeroDCE(torch.nn.Module):
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         le = input_image
-
-        # import matplotlib.pyplot as plt
+        le_middle = None
 
         for i in range(self._iterations_num):
 
@@ -131,36 +130,13 @@ class ZeroDCE(torch.nn.Module):
             alpha_i = x[:, (i, i + self._iterations_num, i + 2 * self._iterations_num), :, :]
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
 
+            if i == self._iterations_num // 2:
+                le_middle = le
+
+            # import matplotlib.pyplot as plt
+            #
             # plt.title(f'Iteration: 8{i + 1}')
             # plt.imshow(le.to('cpu').detach().numpy()[0].transpose(1, 2, 0))
             # plt.show()
 
-        return le
-
-# if __name__ == '__main__':
-#
-#     config = {
-#         ZeroDCE.INPUT_SIZE: 256,
-#         # TODO At moment, to ease implementation even number of layers, is supported
-#         #  (LAYERS_NUM - 1 is the number of layers in the DCE-NET. Last layer are the curve maps).
-#         ZeroDCE.LAYERS_NUM: 7,
-#         ZeroDCE.LAYERS_WIDTH: 32,
-#         ZeroDCE.ITERATIONS_NUM: 8
-#     }
-#
-#     zero_dce = ZeroDCE(config=config)
-#     print(zero_dce)
-#
-#     # ~~~ Testing stuff ~~~
-#     test_image = Image.open('../img.png').convert('RGB')
-#
-#     transform = transforms.Compose([
-#         transforms.ToTensor(),
-#         transforms.Resize([256, 256]),
-#         # transforms.CenterCrop(224),
-#         # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
-#     ])
-#     test_input = transform(test_image)
-#     test_input = test_input[None, :, :, :]
-#
-#     zero_dce(x=test_input)
+        return le, le_middle
