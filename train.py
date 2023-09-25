@@ -24,7 +24,7 @@ IMAGES_TRANSFORM = transforms.Compose([
     # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
 ])
 # ---------------------------------------- TRAIN -------------------------------------- #
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 VALIDATION_SPLIT = 1  # 0.15
 NUM_EPOCHS = 200
 LEARNING_RATE = 0.0001
@@ -71,9 +71,8 @@ def train(config):
     loss_fn = Loss(device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
-    best_loss = float('inf')
-
     # Train Loop
+    min_valid_loss = float('inf')
     for epoch_num in range(NUM_EPOCHS):
 
         train_loss = 0.0
@@ -114,6 +113,15 @@ def train(config):
                 eval_loss += loss.item()
         eval_loss = eval_loss / len(eval_data)
         print('[INFO] EPOCH NUM: {}, VALIDATION LOSS: {}'.format(epoch_num + 1, eval_loss))
+
+        if min_valid_loss > eval_loss:
+            print(f'[INFO] Validation Loss Decreased({min_valid_loss:.6f\
+                }--->{eval_loss:.6f}) \t Saving The Model ({output_dir_path})')
+            min_valid_loss = eval_loss
+
+            # Saving State Dict
+            model_output_path = os.path.join(output_dir_path, f'model_{eval_loss}.pth')
+            torch.save(model.state_dict(), model_output_path)
 
 
 if __name__ == '__main__':
