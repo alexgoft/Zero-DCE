@@ -81,21 +81,21 @@ def train():
         train_loss = 0.0
         model.train()
         for batch_num, train_low_light in enumerate(train_data):
-            print('[INFO]\tEPOCH NUM: {}, BATCH NUM: {}/{}'.format(epoch_num + 1, batch_num + 1, len(train_data)))
-
+            print(f'[INFO]\tEPOCH NUM: {epoch_num + 1}, BATCH NUM: {batch_num + 1}/{len(train_data)}')
             train_low_light = train_low_light.to(device)
 
-            # feedforward
-            train_low_light_enhanced, image_half_enhanced = model(train_low_light)
+            enhanced, alpha_maps = model(train_low_light)
 
-            optimizer.zero_grad()
-
-            loss, losses_dict = loss_fn(image_enhanced=train_low_light_enhanced, image_half_enhanced=image_half_enhanced)
-            loss.backward()
+            loss, losses_dict = loss_fn(enhanced_images=enhanced,
+                                        orig_images=train_low_light,
+                                        alpha_maps=alpha_maps)
             train_loss += loss.item()
 
-            # Backpropagation
+            optimizer.zero_grad()
+            loss.backward()
             optimizer.step()
+        # Calculate average loss over an epoch
+        train_loss = train_loss / len(train_data)
         print(f'[INFO] EPOCH NUM: {epoch_num + 1}, TRAIN LOSS: {train_loss:.5f}')
 
         # val_loss
@@ -103,18 +103,21 @@ def train():
         eval_loss = 0.0
         with torch.no_grad():
 
+            print(f'[INFO] VALIDATION START')
+
             # loop over the validation set
             for batch_num, eval_low_light_images in enumerate(eval_data):
-                print('[INFO]\tEPOCH NUM: {}, BATCH NUM: {}/{}'.format(epoch_num + 1, batch_num + 1, len(eval_data)))
-
                 eval_low_light_images = eval_low_light_images.to(device)
 
-                image_half_enhanced, image_enhanced = model(eval_low_light_images)
+                enhanced, alpha_maps = model(eval_low_light_images)
 
-                loss, losses_dict = loss_fn(image_enhanced=image_enhanced, image_half_enhanced=image_half_enhanced)
+                loss, losses_dict = loss_fn(enhanced_images=enhanced,
+                                            orig_images=eval_low_light_images,
+                                            alpha_maps=alpha_maps)
                 eval_loss += loss.item()
+        # Calculate average loss over an epoch # TODO Same as train_loss. Make function.
         eval_loss = round(eval_loss / len(eval_data), 5)
-        print(f'[INFO] EPOCH NUM: {epoch_num + 1}, VALIDATION LOSS: {eval_loss:.5f}')
+        print(f'[INFO] EPOCH NUM: {epoch_num + 1}, VALIDATION LOSS: {eval_loss}')
 
         if min_valid_loss > eval_loss:
             print(f'[INFO] Validation Loss Decreased({min_valid_loss}--->{eval_loss}) '

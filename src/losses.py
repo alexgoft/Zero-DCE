@@ -46,16 +46,13 @@ class Loss(torch.nn.Module):
         self._weight_up = nn.Parameter(data=self._top_kernel, requires_grad=False)
         self._weight_down = nn.Parameter(data=self._down_kernel, requires_grad=False)
 
-    def forward(self, image_enhanced, image_half_enhanced):
-        loss_exp = self._exposure_control_loss(input_batch=image_enhanced)
-        loss_col = self._color_constancy_loss(input_batch=image_enhanced)
-        loss_spa = self._spatial_consistency_loss(input_batch=image_enhanced, gt_images_batch=image_half_enhanced)
-        loss_ilm = self._illumination_smoothness_loss(input_batch=image_enhanced)
+    def forward(self, enhanced_images, orig_images, alpha_maps):
+        loss_exp = self._exposure_control_loss(input_batch=enhanced_images)
+        loss_col = self._color_constancy_loss(input_batch=enhanced_images)
+        loss_spa = self._spatial_consistency_loss(input_batch1=enhanced_images, input_batch2=orig_images)
+        loss_ilm = self._illumination_smoothness_loss(input_batch=alpha_maps)
 
-        total_loss = (1 * loss_exp) + \
-                     (self._w_col * loss_col) + \
-                     (1 * loss_spa) + \
-                     (self._w_ilm * loss_ilm)
+        total_loss = loss_exp + loss_spa + (self._w_ilm * loss_ilm) + (self._w_col * loss_col)
 
         # TODO Below to constants.
         return total_loss, {
@@ -99,10 +96,10 @@ class Loss(torch.nn.Module):
         # return torch.mean(dist_rg + dist_rb + dist_gb)
         return torch.mean(torch.sqrt(torch.square(dist_rg) + torch.square(dist_rb) + torch.square(dist_gb)))
 
-    def _spatial_consistency_loss(self, input_batch, gt_images_batch):
+    def _spatial_consistency_loss(self, input_batch1, input_batch2):
         # RGB is reduced to an average number per image in the batch.
-        input_batch_mean = torch.mean(input_batch, dim=1, keepdim=True)
-        gt_images_batch_mean = torch.mean(gt_images_batch, dim=1, keepdim=True)
+        input_batch_mean = torch.mean(input_batch1, dim=1, keepdim=True)
+        gt_images_batch_mean = torch.mean(input_batch2, dim=1, keepdim=True)
 
         # Every cell is a mean value of a patch in the input and corresponding "GT".
         # TODO Initialize pooling in _init_
@@ -130,14 +127,17 @@ class Loss(torch.nn.Module):
         """
         preserve the monotonicity relations between neighboring pixels
         """
-        sobel_x = None
-        sobel_y = None
-
         batch_size = input_batch.size()[0]
+
         h_x = input_batch.size()[2]
         w_x = input_batch.size()[3]
+
+        # We discard one row/column.
         count_h = (input_batch.size()[2] - 1) * input_batch.size()[3]
         count_w = input_batch.size()[2] * (input_batch.size()[3] - 1)
+
+        # Essentially, we subtract the value of a pixel with its adjacent pixel
+        # (left and right, top and bottom for horizontal and vertical gradient maps respectively).
         h_tv = torch.pow((input_batch[:, :, 1:, :] - input_batch[:, :, :h_x - 1, :]), 2).sum()
         w_tv = torch.pow((input_batch[:, :, :, 1:] - input_batch[:, :, :, :w_x - 1]), 2).sum()
 

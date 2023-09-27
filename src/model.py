@@ -82,7 +82,7 @@ class ZeroDCE(torch.nn.Module):
             LE(I(x); α) is the enhanced version of the given input I(x),
             α ∈ [−1, 1] is the trainable curve parameter
         """
-        curr_le = prev_le + curr_alpha * (torch.square(prev_le) - prev_le)
+        curr_le = prev_le + curr_alpha * (prev_le - torch.square(prev_le))
 
         return curr_le
 
@@ -114,14 +114,10 @@ class ZeroDCE(torch.nn.Module):
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
         # Split the curve maps into alpha maps (3 maps for each iteration)
         alpha_maps = torch.split(x, split_size_or_sections=3, dim=1)
-
         le = input_image
-        le_middle = None
 
         for i, alpha_i in enumerate(alpha_maps):
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
-            if i == self._iterations_num // 2:
-                le_middle = le
 
             # import matplotlib.pyplot as plt
             #
@@ -129,4 +125,5 @@ class ZeroDCE(torch.nn.Module):
             # plt.imshow(le.to('cpu').detach().numpy()[0].transpose(1, 2, 0))
             # plt.show()
 
-        return le, le_middle
+        return le, torch.concat(alpha_maps, dim=1)  # We need maps for the Illumination Smoothness Loss
+
