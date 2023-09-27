@@ -1,5 +1,6 @@
 import os
 import cv2
+import torch.cuda
 
 from imutils import paths
 
@@ -48,10 +49,8 @@ def read_image(image_path):
     return image
 
 
-def get_datasets(train_dir_path, eval_dir_path,
-                 batch_size=4,
-                 transform_img=None, transform_ann=None,
-                 device='cpu'):
+def get_datasets(train_dir_path, eval_dir_path, batch_size=4, transform_img=None, device='cpu'):
+
     """ Function to create train and test datasets and data loaders. """
     # Load paths in sorted manner.
     train_paths = sorted(list(paths.list_images(train_dir_path)))
@@ -62,9 +61,8 @@ def get_datasets(train_dir_path, eval_dir_path,
     val_dataset = LEDataset(image_paths=eval_paths, transform=transform_img, device=device)
 
     # create the training and test data loaders
-    pin_memory = True if 'cuda' in str(device) else False
-    train_loader = DataLoader(train_dataset, batch_size=batch_size) #, num_workers=os.cpu_count(), pin_memory=pin_memory)
-    eval_loader = DataLoader(val_dataset, batch_size=batch_size) #, num_workers=os.cpu_count(), pin_memory=pin_memory)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size)
+    eval_loader = DataLoader(val_dataset, batch_size=batch_size)
 
     print(f"[INFO] found {len(train_dataset)} examples in the training set...")
     print(f"[INFO] found {len(val_dataset)} examples in the eval set...")

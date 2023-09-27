@@ -29,30 +29,35 @@ class ZeroDCE(torch.nn.Module):
         self._layers_width = config[self.LAYERS_WIDTH]
         self._iterations_num = config[self.ITERATIONS_NUM]
 
-        self._layers = self._initialize_dce_net_layers()
+        # Activation functions
+        self._relu = torch.nn.ReLU()
+        self._tanh = torch.nn.Tanh()
 
+        # Layers initialization
+        self._layers = self._initialize_dce_net_layers()
         self._model = torch.nn.Sequential(*self._layers)
         print(self._model)
 
         self._init_weights()
 
     def _init_weights(self):
-        for layer in self._model:
-            if isinstance(layer, nn.Conv2d):
-                torch.nn.init.xavier_uniform(layer.weight)
-                layer.bias.data.fill_(0.01)
+        """
+        The filter weights of each layer are initialized with
+        standard zero mean and 0.02 standard deviation Gaussian function.
+        Bias is initialized as a constant.
+        """
+        for layer in self._model:  # Assume all layers are Conv2d.
+            torch.nn.init.normal_(layer.weight, mean=0.0, std=0.02)
+            layer.bias.data.fill_(0)
 
     def _initialize_dce_net_layers(self):
 
         layers = []
 
-        relu = torch.nn.ReLU()
-        tanh = torch.nn.Tanh()
-
         # Every layer is followed by RELU, and the last is followed by tanh
-        for layer_num in range(self._layers_num - 1):
-            out_layers = self._layers_width
+        for layer_num in range(self._layers_num):
             in_layers = self._RGB_CHANNELS if layer_num == 0 else self._layers_width
+            out_layers = self._layers_width if layer_num != self._layers_num - 1 else self._iterations_num * self._RGB_CHANNELS
 
             # print((num_half_net_layers - i % num_half_net_layers) - 1)
             conv = torch.nn.Conv2d(
@@ -63,16 +68,7 @@ class ZeroDCE(torch.nn.Module):
                 stride=self._STRIDE,
                 device=self._device,
             )
-
             layers.append(conv)
-            layers.append(relu)
-
-        # Add final layer that produce the Curve maps
-        layers.append(torch.nn.Conv2d(
-            in_channels=self._layers_width, out_channels=self._iterations_num * self._RGB_CHANNELS,
-            padding=self._PADDING, kernel_size=self._KERNEL_SHAPE, stride=self._STRIDE
-        ))
-        layers.append(tanh)
 
         return layers
 
@@ -100,21 +96,23 @@ class ZeroDCE(torch.nn.Module):
 
         # First num_half_net_layers layers. Results will be connected to further layers.
         for layer_num in range(self._layers_num - 1):
-            x = self._layers[layer_num](x)
-            if layer_num % 2 != 0:  # Save intermediate results after activations.
+            if layer_num < self._layers_num // 2:  # First half of the net.
+                x = self._relu(self._layers[layer_num](x))
                 mid_results.append(x)
 
-        # Skip connections layers.
-        for layer_num in range(self._layers_num, (self._layers_num * 2) - 1):
-            x = self._layers[layer_num](x)
-            if layer_num % 2 != 0:  # Save intermediate results after activations.
-                layer_num_skip = (2 * len(mid_results)) - (layer_num // 2) - 1
-                x = x + mid_results[layer_num_skip]
+                # print('conv2d:', layer_num)
 
-        # Last layer that produces the curve maps.
-        x = self._layers[-1](x)
+            else:  # Skip connections from the first half of the net.
+                skipped_layer = (len(self._layers) - 2) - layer_num
+                x = self._relu(x + mid_results[skipped_layer])  # x here is the result of the previous layer.
+
+                # print(f'conv2d + skip: {layer_num} + {skipped_layer} [input for layer {layer_num+1}]')
+
+        # Last layer that produces the curve maps
+        x = self._tanh(self._layers[-1](x))
 
         # @@@@@@@@@@@@@@@@ Iterations @@@@@@@@@@@@@@@@@ #
+        # Split the curve maps into alpha maps (3 maps for each iteration)
         alpha_maps = torch.split(x, split_size_or_sections=3, dim=1)
 
         le = input_image

@@ -41,9 +41,14 @@ MODEL_CONFIG = {
 
 # TODO 1 All global configurable to a YAML configuration.
 # TODO 2 Add validation loop.
-
-def train(config):
+# TODO 3 Add config support.
+def train():
+    # Device
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        print(f"[INFO] CUDA is available, using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        print("[INFO] CUDA is not available, using CPU...")
 
     # Configure output directory.
     output_dir_path = os.path.join('outputs', time.strftime("%Y%m%d-%H%M%S"))
@@ -51,7 +56,6 @@ def train(config):
 
     # Model
     model = ZeroDCE(config=MODEL_CONFIG, device=device)
-    # model = enhance_net_nopool()
     model.to(device)
     model.train()
     print(model)
@@ -82,7 +86,6 @@ def train(config):
             train_low_light = train_low_light.to(device)
 
             # feedforward
-            # image_enhanced, image_half_enhanced, _ = model(train_low_light)
             train_low_light_enhanced, image_half_enhanced = model(train_low_light)
 
             optimizer.zero_grad()
@@ -110,11 +113,11 @@ def train(config):
 
                 loss, losses_dict = loss_fn(image_enhanced=image_enhanced, image_half_enhanced=image_half_enhanced)
                 eval_loss += loss.item()
-        eval_loss = eval_loss / len(eval_data)
+        eval_loss = round(eval_loss / len(eval_data), 5)
         print(f'[INFO] EPOCH NUM: {epoch_num + 1}, VALIDATION LOSS: {eval_loss:.5f}')
 
         if min_valid_loss > eval_loss:
-            print(f'[INFO] Validation Loss Decreased({min_valid_loss:.5f}--->{eval_loss:.5f}) '
+            print(f'[INFO] Validation Loss Decreased({min_valid_loss}--->{eval_loss}) '
                   f'\t Saving The Model ({output_dir_path})')
             min_valid_loss = eval_loss
 
@@ -124,4 +127,4 @@ def train(config):
 
 
 if __name__ == '__main__':
-    train(None)
+    train()
