@@ -7,8 +7,8 @@ from src.data import get_dataset
 from src.model import ZeroDCE
 from utils import get_device, display_images
 
-DATA_DIR = 'data\\lol_dataset'
-TEST_DIR_NAME = 'small'
+DATA_DIR = 'data\\lol_dataset\\'
+TEST_DIR_NAME = 'alex'
 
 OUTPUTS_DIR = "C:\\Users\\alexg\\Desktop\\projects\\Zero-DCE\\outputs\\20230927-201607"
 CONFIG_NAME = "config.yaml"
@@ -35,12 +35,11 @@ def test():
     test_data = get_dataset(dir_path=test_dir_path,
                             transform_img=IMAGES_TRANSFORM, batch_size=1, device=device)
 
-    for image in test_data:
-        image = image.to(device=device)
+    for i, image in enumerate(test_data):
         enhanced_image, alpha_maps = model(image)
 
         image, enhanced_image = image.cpu().squeeze(), enhanced_image.cpu().squeeze()
-        display_images([image, enhanced_image])
+        display_images([image, enhanced_image], title=f"image_{i}")
 
 
 if __name__ == '__main__':

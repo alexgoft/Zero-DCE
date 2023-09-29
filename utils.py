@@ -18,7 +18,7 @@ def get_device():
     return device
 
 
-def display_images(images):
+def display_images(images, title=None):
     if not isinstance(images, list):
         images = [images]
 
@@ -28,5 +28,11 @@ def display_images(images):
         img = F.to_pil_image(img)
         axs[0, i].imshow(img)
         axs[0, i].set(xticklabels=[], yticklabels=[], xticks=[], yticks=[])
-    plt.show()
+        axs[0, i].label_outer()
 
+        axes_txt = 'Original' if i == 0 else 'Enhanced'
+        axs[0, i].title.set_text(axes_txt)
+    # if title:
+    #     fig.suptitle(title)
+    plt.show()
+    # plt.savefig(f"{title}.png")
