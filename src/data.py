@@ -25,7 +25,7 @@ class LEDataset(Dataset):
         image = read_image(self.image_paths[idx])
         if self.transform:
             image = self.transform(image)
-        return image
+        return image.to(self.device)
 
 
 def read_image(image_path):

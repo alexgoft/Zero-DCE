@@ -4,11 +4,11 @@ import torch
 
 import torchvision.transforms as transforms
 
+from utils import get_device
 from src.data import get_dataset
 from src.losses import Loss
 from src.model import ZeroDCE
-
-from utils import get_device
+from src.config import ConfigFile
 
 # ---------------------------------------- DATA --------------------------------------- #
 
@@ -22,60 +22,54 @@ IMAGES_TRANSFORM = transforms.Compose([
     transforms.Resize(RESIZE_SIZE, antialias=True),
 ])
 
-# ---------------------------------------- TRAIN -------------------------------------- #
-BATCH_SIZE = 8
-VALIDATION_SPLIT = 1  # 0.15
-NUM_EPOCHS = 200
-LEARNING_RATE = 0.0001
-WEIGHT_DECAY = 0.0001
-
-# ---------------------------------------- MODEL -------------------------------------- #
-MODEL_CONFIG = {
-    ZeroDCE.INPUT_SIZE: 256,
-    ZeroDCE.LAYERS_NUM: 7,
-    ZeroDCE.LAYERS_WIDTH: 32,
-    ZeroDCE.ITERATIONS_NUM: 8
-}
+CONFIG_FILE_NAME = 'config.yaml'
+CONFIG_FILE_PATH = os.path.join('src', CONFIG_FILE_NAME)
 
 
-# TODO 1 All global configurable to a YAML configuration.
-# TODO 2 Add validation loop.
-# TODO 3 Add config support.
 def train():
     device = get_device()
 
-    # Configure output directory.
+    # output directory
     output_dir_path = os.path.join('outputs', time.strftime("%Y%m%d-%H%M%S"))
     os.makedirs(output_dir_path)
 
-    # Model
-    model = ZeroDCE(config=MODEL_CONFIG, device=device)
+    # config
+    config = ConfigFile.load(config_path=CONFIG_FILE_PATH)
+
+    output_dir_path = os.path.join(output_dir_path, 'config.yaml')
+    config.save_config(output_dir_path)
+
+    # model
+    model = ZeroDCE(config=config, device=device)
 
     # Datasets
     train_dir_path = os.path.join(DATA_DIR, TRAIN_DIR_NAME)
     val_dir_path = os.path.join(DATA_DIR, VAL_DIR_NAME)
 
     # gts_path is empty string because we don't have ground truth images.
+    batch_size = config.train.batch_size
     train_data = get_dataset(
-        dir_path=train_dir_path, transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
+        dir_path=train_dir_path, transform_img=IMAGES_TRANSFORM,
+        batch_size=batch_size, device=device
     )
     eval_data = get_dataset(
-        dir_path=train_dir_path, transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
+        dir_path=val_dir_path, transform_img=IMAGES_TRANSFORM,
+        batch_size=batch_size, device=device
     )
     # loss function and optimizer
     loss_fn = Loss(device=device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    optimizer = torch.optim.Adam(model.parameters(),
+                                 lr=config.train.learning_rate,
+                                 weight_decay=config.train.weight_decay)
 
     # Train Loop
     min_valid_loss = float('inf')
-    for epoch_num in range(NUM_EPOCHS):
+    for epoch_num in range(config.train.num_epochs):
 
-        train_loss = 0.0
         model.train()
+        train_loss = 0.0
         for batch_num, train_low_light in enumerate(train_data):
             print(f'[INFO] EPOCH NUM: {epoch_num + 1}, BATCH NUM: {batch_num + 1}/{len(train_data)}')
-            train_low_light = train_low_light.to(device)
-
             enhanced, alpha_maps = model(train_low_light)
 
             loss, losses_dict = loss_fn(enhanced_images=enhanced,
@@ -98,8 +92,6 @@ def train():
 
             # loop over the validation set
             for batch_num, eval_low_light_images in enumerate(eval_data):
-                eval_low_light_images = eval_low_light_images.to(device)
-
                 enhanced, alpha_maps = model(eval_low_light_images)
 
                 loss, losses_dict = loss_fn(enhanced_images=enhanced,
@@ -118,6 +110,8 @@ def train():
             # Saving State Dict
             model_output_path = os.path.join(output_dir_path, f'model_{eval_loss}.pth')
             torch.save(model.state_dict(), model_output_path)
+
+    print(f'[INFO] Training finished. Output directory: {output_dir_path}')
 
 
 if __name__ == '__main__':

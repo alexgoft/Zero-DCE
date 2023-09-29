@@ -1,7 +1,7 @@
 import torch
 
-class ZeroDCE(torch.nn.Module):
 
+class ZeroDCE(torch.nn.Module):
     LAYERS_NUM = 'layers_num'
     LAYERS_WIDTH = 'layers_width'
     ITERATIONS_NUM = 'iterations_num'
@@ -14,15 +14,16 @@ class ZeroDCE(torch.nn.Module):
     _DNN_KERNEL_SHAPE = (3, 3)
     _DNN_CONV_PAD = 1  # use padding 1 to keep same shape between convolutions.
 
-    def __init__(self, config, device):
+    def __init__(self, config, device, model_path=None):
         super(ZeroDCE, self).__init__()
         self._device = device
+        self._model_path = model_path
 
         # Framework params
-        self._input_shape = config[self.INPUT_SIZE]
-        self._layers_num = config[self.LAYERS_NUM]
-        self._layers_width = config[self.LAYERS_WIDTH]
-        self._iterations_num = config[self.ITERATIONS_NUM]
+        self._input_size = config.model.input_size
+        self._layers_num = config.model.layers_num
+        self._layers_width = config.model.layers_width
+        self._iterations_num = config.model.iterations_num
 
         # Activation functions
         self._relu = torch.nn.ReLU()
@@ -34,13 +35,13 @@ class ZeroDCE(torch.nn.Module):
 
         self._init_weights()
 
-        if config.get(self.MODEL_PATH) is None:
+        if self._model_path is None:
             print('[INFO] No model path was given. Creating new model...')
             self._model.train()
 
         else:
-            print(f'[INFO] Loading model from path: {config[self.MODEL_PATH]}')
-            state_dict = torch.load(config[self.MODEL_PATH])
+            print(f'[INFO] Loading model from path: {model_path}')
+            state_dict = torch.load(model_path)
 
             # TODO Patch. Remove for model of new versions
             #  (after trained with fix).
@@ -133,4 +134,3 @@ class ZeroDCE(torch.nn.Module):
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
 
         return le, torch.concat(alpha_maps, dim=1)  # We need maps for the Illumination Smoothness Loss
-
