@@ -17,7 +17,6 @@ class ConfigFile:
     def load(config_path):
         with open(config_path) as f:
             config = yaml.safe_load(f)
-
         return ConfigFile(config)
 
     def _create_attributes(self, data):
@@ -32,7 +31,6 @@ class ConfigFile:
             yaml.dump(self.as_dict(), f)
 
     def as_dict(self):
-
         config_dict = {}
         for key, value in vars(self).items():
             if isinstance(value, ConfigFile):
