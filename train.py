@@ -3,12 +3,12 @@ import time
 import torch
 
 import torchvision.transforms as transforms
-from tqdm import tqdm
 
-from src.data import get_datasets
+from src.data import get_dataset
 from src.losses import Loss
 from src.model import ZeroDCE
-from src.model_orig import enhance_net_nopool
+
+from utils import get_device
 
 # ---------------------------------------- DATA --------------------------------------- #
 
@@ -20,9 +20,8 @@ RESIZE_SIZE = (512, 512)
 IMAGES_TRANSFORM = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize(RESIZE_SIZE, antialias=True),
-    # transforms.CenterCrop(224),
-    # transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD),
 ])
+
 # ---------------------------------------- TRAIN -------------------------------------- #
 BATCH_SIZE = 8
 VALIDATION_SPLIT = 1  # 0.15
@@ -43,12 +42,7 @@ MODEL_CONFIG = {
 # TODO 2 Add validation loop.
 # TODO 3 Add config support.
 def train():
-    # Device
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if torch.cuda.is_available():
-        print(f"[INFO] CUDA is available, using GPU: {torch.cuda.get_device_name(0)}")
-    else:
-        print("[INFO] CUDA is not available, using CPU...")
+    device = get_device()
 
     # Configure output directory.
     output_dir_path = os.path.join('outputs', time.strftime("%Y%m%d-%H%M%S"))
@@ -56,20 +50,18 @@ def train():
 
     # Model
     model = ZeroDCE(config=MODEL_CONFIG, device=device)
-    model.to(device)
-    model.train()
-    print(model)
 
     # Datasets
     train_dir_path = os.path.join(DATA_DIR, TRAIN_DIR_NAME)
     val_dir_path = os.path.join(DATA_DIR, VAL_DIR_NAME)
 
     # gts_path is empty string because we don't have ground truth images.
-    train_data, eval_data = get_datasets(
-        train_dir_path=train_dir_path, eval_dir_path=val_dir_path,
-        transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
+    train_data = get_dataset(
+        dir_path=train_dir_path, transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
     )
-
+    eval_data = get_dataset(
+        dir_path=train_dir_path, transform_img=IMAGES_TRANSFORM, batch_size=BATCH_SIZE, device=device
+    )
     # loss function and optimizer
     loss_fn = Loss(device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
@@ -81,7 +73,7 @@ def train():
         train_loss = 0.0
         model.train()
         for batch_num, train_low_light in enumerate(train_data):
-            print(f'[INFO]\tEPOCH NUM: {epoch_num + 1}, BATCH NUM: {batch_num + 1}/{len(train_data)}')
+            print(f'[INFO] EPOCH NUM: {epoch_num + 1}, BATCH NUM: {batch_num + 1}/{len(train_data)}')
             train_low_light = train_low_light.to(device)
 
             enhanced, alpha_maps = model(train_low_light)
@@ -102,7 +94,6 @@ def train():
         model.eval()
         eval_loss = 0.0
         with torch.no_grad():
-
             print(f'[INFO] VALIDATION START')
 
             # loop over the validation set
@@ -115,7 +106,7 @@ def train():
                                             orig_images=eval_low_light_images,
                                             alpha_maps=alpha_maps)
                 eval_loss += loss.item()
-        # Calculate average loss over an epoch # TODO Same as train_loss. Make function.
+        # Calculate average loss over an epoch # TODO Same as train_loss. Make function?
         eval_loss = round(eval_loss / len(eval_data), 5)
         print(f'[INFO] EPOCH NUM: {epoch_num + 1}, VALIDATION LOSS: {eval_loss}')
 

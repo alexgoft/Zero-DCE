@@ -1,29 +1,24 @@
 import torch
 
-import torchvision.transforms as transforms
-
-from PIL import Image
-from torch import nn
-
-
 class ZeroDCE(torch.nn.Module):
+
     LAYERS_NUM = 'layers_num'
     LAYERS_WIDTH = 'layers_width'
     ITERATIONS_NUM = 'iterations_num'
     INPUT_SIZE = 'input_size'  # Input layer have input shape of (INPUT_SIZE, INPUT_SIZE, 3)
+    MODEL_PATH = 'model_path'
 
     _RGB_CHANNELS = 3
 
-    _STRIDE = (1, 1)
-    _KERNEL_SHAPE = (3, 3)
-    _PADDING = 1  # use padding 1 to keep same shape between convolutions.
+    _DNN_STRIDE = (1, 1)
+    _DNN_KERNEL_SHAPE = (3, 3)
+    _DNN_CONV_PAD = 1  # use padding 1 to keep same shape between convolutions.
 
     def __init__(self, config, device):
         super(ZeroDCE, self).__init__()
-
         self._device = device
 
-        # Model params
+        # Framework params
         self._input_shape = config[self.INPUT_SIZE]
         self._layers_num = config[self.LAYERS_NUM]
         self._layers_width = config[self.LAYERS_WIDTH]
@@ -36,9 +31,27 @@ class ZeroDCE(torch.nn.Module):
         # Layers initialization
         self._layers = self._initialize_dce_net_layers()
         self._model = torch.nn.Sequential(*self._layers)
-        print(self._model)
 
         self._init_weights()
+
+        if config.get(self.MODEL_PATH) is None:
+            print('[INFO] No model path was given. Creating new model...')
+            self._model.train()
+
+        else:
+            print(f'[INFO] Loading model from path: {config[self.MODEL_PATH]}')
+            state_dict = torch.load(config[self.MODEL_PATH])
+
+            # TODO Patch. Remove for model of new versions
+            #  (after trained with fix).
+            for key in list(state_dict.keys()):
+                state_dict[key.replace('_model.', '')] = state_dict.pop(key)
+
+            self._model.load_state_dict(state_dict)
+            self._model.eval()
+
+        self._model.to(device=device)
+        print(self._model)
 
     def _init_weights(self):
         """
@@ -63,9 +76,9 @@ class ZeroDCE(torch.nn.Module):
             conv = torch.nn.Conv2d(
                 in_channels=in_layers,
                 out_channels=out_layers,
-                padding=self._PADDING,
-                kernel_size=self._KERNEL_SHAPE,
-                stride=self._STRIDE,
+                padding=self._DNN_CONV_PAD,
+                kernel_size=self._DNN_KERNEL_SHAPE,
+                stride=self._DNN_STRIDE,
                 device=self._device,
             )
             layers.append(conv)
@@ -118,12 +131,6 @@ class ZeroDCE(torch.nn.Module):
 
         for i, alpha_i in enumerate(alpha_maps):
             le = self._light_enhancement_curve_function(prev_le=le, curr_alpha=alpha_i)
-
-            # import matplotlib.pyplot as plt
-            #
-            # plt.title(f'Iteration: 8{i + 1}')
-            # plt.imshow(le.to('cpu').detach().numpy()[0].transpose(1, 2, 0))
-            # plt.show()
 
         return le, torch.concat(alpha_maps, dim=1)  # We need maps for the Illumination Smoothness Loss
 
