@@ -3,7 +3,7 @@ import yaml
 
 import torchvision.transforms as transforms
 
-from config import ConfigFile
+from config_file import ConfigFile
 from src.data import get_dataset
 from src.model import ZeroDCE
 from utils import get_device, display_images

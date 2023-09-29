@@ -8,7 +8,7 @@ from utils import get_device
 from src.data import get_dataset
 from src.losses import Loss
 from src.model import ZeroDCE
-from src.config import ConfigFile
+from src.config_file import ConfigFile
 
 # ---------------------------------------- DATA --------------------------------------- #
 
