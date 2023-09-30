@@ -6,7 +6,7 @@ import torchvision.transforms as transforms
 
 from utils import get_device
 from src.data import get_dataset
-from src.losses import Loss
+from src.losses import ZeroReferenceLoss
 from src.model import ZeroDCE
 from src.config_file import ConfigFile
 
@@ -22,8 +22,7 @@ IMAGES_TRANSFORM = transforms.Compose([
     transforms.Resize(RESIZE_SIZE, antialias=True),
 ])
 
-CONFIG_FILE_NAME = 'config.yaml'
-CONFIG_FILE_PATH = os.path.join('src', CONFIG_FILE_NAME)
+CONFIG_FILE_PATH = 'config.yaml'
 
 
 def train():
@@ -36,8 +35,8 @@ def train():
     # config
     config = ConfigFile.load(config_path=CONFIG_FILE_PATH)
 
-    output_dir_path = os.path.join(output_dir_path, 'config.yaml')
-    config.save_config(output_dir_path)
+    config_path = os.path.join(output_dir_path, 'config.yaml')
+    config.save_config(config_path)
 
     # model
     model = ZeroDCE(config=config, device=device)
@@ -57,7 +56,7 @@ def train():
         batch_size=batch_size, device=device
     )
     # loss function and optimizer
-    loss_fn = Loss(device=device)
+    loss_fn = ZeroReferenceLoss()
     optimizer = torch.optim.Adam(model.parameters(),
                                  lr=config.train.learning_rate,
                                  weight_decay=config.train.weight_decay)
