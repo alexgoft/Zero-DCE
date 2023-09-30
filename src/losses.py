@@ -130,14 +130,10 @@ class SpatialConsistencyLoss(Loss):
         top_diff_1, down_diff_1, left_diff_1, right_diff_1 = self._calculate_patches_diff(input_batch_1)
         top_diff_2, down_diff_2, left_diff_2, right_diff_2 = self._calculate_patches_diff(input_batch_2)
 
-        # left_sqr = torch.square(left_diff_1 - left_diff2)
-        # right_sqr = torch.square(right_diff1 - right_diff2)
-        # top_sqr = torch.square(top_diff_1 - top_diff_2)
-        # down_sqr = torch.square(down_diff_1 - down_diff_2)
-        left_sqr = torch.abs(left_diff_1 - left_diff_2)
-        right_sqr = torch.abs(right_diff_1 - right_diff_2)
-        top_sqr = torch.abs(top_diff_1 - top_diff_2)
-        down_sqr = torch.abs(down_diff_1 - down_diff_2)
+        left_sqr = torch.square(left_diff_1 - left_diff_2)
+        right_sqr = torch.square(right_diff_1 - right_diff_2)
+        top_sqr = torch.square(top_diff_1 - top_diff_2)
+        down_sqr = torch.square(down_diff_1 - down_diff_2)
 
         return torch.mean(left_sqr + right_sqr + top_sqr + down_sqr, dim=[2, 3]).mean()
 
