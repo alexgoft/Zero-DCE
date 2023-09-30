@@ -2,11 +2,6 @@ import torch
 
 
 class ZeroDCE(torch.nn.Module):
-    LAYERS_NUM = 'layers_num'
-    LAYERS_WIDTH = 'layers_width'
-    ITERATIONS_NUM = 'iterations_num'
-    INPUT_SIZE = 'input_size'  # Input layer have input shape of (INPUT_SIZE, INPUT_SIZE, 3)
-    MODEL_PATH = 'model_path'
 
     _RGB_CHANNELS = 3
 
