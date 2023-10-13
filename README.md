@@ -11,14 +11,13 @@
 [//]: # (    <a href="#-references">References</a>)
 </h3>
 
-# 📝 Overview
+## 📝 Overview
 
 The goal of Zero-DCE is to enhance low-light images by estimating an image-specific tonal curve with a deep neural network.
 
 It takes a low-light image as input and produces high-order tonal curves as its output. These curves are then used for pixel-wise adjustment on the dynamic range of the input to obtain an enhanced image
 
-# 📈 Results
-
+## 📈 Results
 
 <center>
 
