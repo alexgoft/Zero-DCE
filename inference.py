@@ -3,16 +3,16 @@ import os
 import torchvision.transforms as transforms
 
 from config_file import ConfigFile
-from src.data import get_dataset
-from src.model import ZeroDCE
+from data import get_dataset
+from model import ZeroDCE
 from utils import get_device, display_images
 
 DATA_DIR = 'data\\lol_dataset\\'
 TEST_DIR_NAME = 'alex'
 
-OUTPUTS_DIR = "C:\\Users\\alexg\\Desktop\\projects\\Zero-DCE\\outputs\\20230927-201607"
+OUTPUTS_DIR = "C:\\Users\\alexg\\Desktop\\projects\\Zero-DCE\\outputs\\20230930-192210"
 CONFIG_NAME = "config.yaml"
-MODEL_NAME = "model_0.09017.pth"
+MODEL_NAME = "model_0.163.pth"
 
 RESIZE_SIZE = (512, 512)
 IMAGES_TRANSFORM = transforms.Compose([
@@ -21,7 +21,7 @@ IMAGES_TRANSFORM = transforms.Compose([
 ])
 
 
-def test():
+def inference():
     config_path = os.path.join(OUTPUTS_DIR, CONFIG_NAME)
     model_path = os.path.join(OUTPUTS_DIR, MODEL_NAME)
     test_dir_path = os.path.join(DATA_DIR, TEST_DIR_NAME)
@@ -43,4 +43,4 @@ def test():
 
 
 if __name__ == '__main__':
-    test()
+    inference()
